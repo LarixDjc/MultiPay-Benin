@@ -58,6 +58,18 @@ class ApiService {
       return {'message': 'Erreur de connexion au serveur'};
     }
   }
+ static Future<Map<String, dynamic>> consulterComptesOperateurs() async {
+  try {
+    final headers = await headersAvecToken();
+    final response = await http.get(
+      Uri.parse('${Constants.baseUrl}/compte/operateurs'),
+      headers: headers,
+    );
+    return jsonDecode(response.body);
+  } catch (e) {
+    return {'message': 'Erreur réseau'};
+  }
+}
 
   static Future<Map<String, dynamic>> configurerCompteOperateur(List comptes) async {
   try {

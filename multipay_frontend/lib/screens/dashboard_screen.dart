@@ -10,6 +10,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'historique_screen.dart';
 import 'transactions_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'statistiques_screen.dart';
+import 'package:http/http.dart' as http;
+import '../core/constants.dart';
+
 
 
 class DashboardScreen extends StatefulWidget {
@@ -33,6 +37,7 @@ String agentId = "BJ-00000";
 String totalProfit = "0.00";
 double _commissionsJour = 0;
 double _totalCommissions = 0;
+DateTime? _lastPressedAt;
 
 Future<void> _loadDashboardData() async {
   setState(() => _isLoading = true);
@@ -44,6 +49,24 @@ if (statsData['totalCommissions'] != null) {
     _commissionsJour = statsData['commissionsJour'].toDouble();
   });
 }
+ // Charger les soldes par opérateur
+ final comptesData = await ApiService.consulterComptesOperateurs();
+if (comptesData['comptes'] != null) {
+  for (var compte in comptesData['comptes']) {
+    if (compte['operateur'] == 'MTN') {
+      setState(() => mtnBalance = compte['solde'].toString());
+    } else if (compte['operateur'] == 'MOOV') {
+      setState(() => moovBalance = compte['solde'].toString());
+    } else if (compte['operateur'] == 'CELTIIS') {
+      setState(() => celtiisBalance = compte['solde'].toString());
+    }
+  }
+}
+final headers = await ApiService.headersAvecToken();
+final response = await http.get(
+  Uri.parse('${Constants.baseUrl}/compte/operateurs'),
+  headers: headers,
+);
 
   final data = await ApiService.consulterSolde();
 
@@ -81,8 +104,8 @@ void _showStatistiques() async {
             // Commissions par opérateur
             const Text("COMMISSIONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
             const SizedBox(height: 10),
-            _buildStatRow("💰 Commissions du jour", "${data['commissionsJour']?.toStringAsFixed(0) ?? '0'} F", Colors.green),
-            _buildStatRow("💰 Total commissions", "${data['totalCommissions']?.toStringAsFixed(0) ?? '0'} F", Colors.green),
+            _buildStatRow(" Commissions du jour", "${data['commissionsJour']?.toStringAsFixed(0) ?? '0'} F", Colors.green),
+            _buildStatRow(" Total commissions", "${data['totalCommissions']?.toStringAsFixed(0) ?? '0'} F", Colors.green),
 
             const SizedBox(height: 20),
             const Text("OPÉRATIONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
@@ -90,14 +113,14 @@ void _showStatistiques() async {
 
             // Stats par type
             if (data['stats'] != null) ...[
-              _buildStatRow("⬇️ Dépôts", "${data['stats']['depot']?['count'] ?? 0} opérations", Colors.blue),
-              _buildStatRow("⬆️ Retraits", "${data['stats']['retrait']?['count'] ?? 0} opérations", Colors.red),
-              _buildStatRow("📱 Crédits", "${data['stats']['credit']?['count'] ?? 0} opérations", Colors.orange),
-              _buildStatRow("📶 Forfaits", "${data['stats']['forfait']?['count'] ?? 0} opérations", Colors.purple),
-              _buildStatRow("⚡ SBEE", "${data['stats']['sbee']?['count'] ?? 0} opérations", Colors.yellow.shade800),
-              _buildStatRow("💧 SONEB", "${data['stats']['soneb']?['count'] ?? 0} opérations", Colors.cyan),
-              _buildStatRow("📺 Canal+", "${data['stats']['canal']?['count'] ?? 0} opérations", Colors.deepPurple),
-              _buildStatRow("🎓 Scolarité", "${data['stats']['scolarite']?['count'] ?? 0} opérations", Colors.teal),
+              _buildStatRow("Dépôts", "${data['stats']['depot']?['count'] ?? 0} opérations", Colors.blue),
+              _buildStatRow("Retraits", "${data['stats']['retrait']?['count'] ?? 0} opérations", Colors.red),
+              _buildStatRow("Crédits", "${data['stats']['credit']?['count'] ?? 0} opérations", Colors.orange),
+              _buildStatRow("Forfaits", "${data['stats']['forfait']?['count'] ?? 0} opérations", Colors.purple),
+              _buildStatRow("SBEE", "${data['stats']['sbee']?['count'] ?? 0} opérations", Colors.yellow.shade800),
+              _buildStatRow("SONEB", "${data['stats']['soneb']?['count'] ?? 0} opérations", Colors.cyan),
+              _buildStatRow("Canal+", "${data['stats']['canal']?['count'] ?? 0} opérations", Colors.deepPurple),
+              _buildStatRow("Scolarité", "${data['stats']['scolarite']?['count'] ?? 0} opérations", Colors.teal),
             ],
 
             const SizedBox(height: 20),
@@ -225,36 +248,6 @@ void _loadAgentInfo() async {
 
   // --- DONNÉES DE TEST (Opérateur - Opération - Cible - Montant - Statut) ---
   // NOUVEAU CODE
-final List<TransactionData> transactions = [
-  TransactionData(
-    id: "772109231",
-    operator: "MTN",
-    service: "Dépôts",
-    number: "67000000",
-    name: "Moustapha ABDOULAYE",
-    amount: "5000",
-    dateTime: DateTime.now(),
-    isSuccess: true,
-  ),
-  TransactionData(
-    id: "772109235",
-    operator: "MOOV",
-    service: "Retraits",
-    number: "95123456",
-    amount: "2500",
-    dateTime: DateTime.now().subtract(const Duration(hours: 1)),
-    isSuccess: true,
-  ),
-  TransactionData(
-    id: "772109240",
-    operator: "CELTIIS",
-    service: "Crédit",
-    number: "40112233",
-    amount: "1000",
-    dateTime: DateTime.now().subtract(const Duration(days: 1)),
-    isSuccess: false,
-  ),
-];
 
   void showStatusNotification(String message, String status) {
     Color bgColor = status == 'success' ? Colors.green : (status == 'error' ? Colors.red : Colors.orange);
@@ -272,49 +265,65 @@ final List<TransactionData> transactions = [
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F4F5),
-      body: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: [
-                _buildHome(),             // Index 0
-                _buildTransactionsPage(),  // Index 1 (Dépôts / Retraits)
-                _buildHistoryPage(),       // Index 2 (Tout)
-                _buildSettingsPage(),      // Index 3
-              ],
+    return PopScope(
+      canPop: false, // Bloque le retour automatique immédiat
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final now = DateTime.now();
+        // Vérifie s'il s'agit du premier clic ou si le dernier clic remonte à plus de 2 secondes
+        if (_lastPressedAt == null || now.difference(_lastPressedAt!) > const Duration(seconds: 2)) {
+          _lastPressedAt = now;
+
+          // Affiche le petit message d'avertissement en bas
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Appuyez à nouveau pour quitter l\'application',
+                style: TextStyle(color: Color.fromARGB(255, 12, 11, 11), fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: Color.fromARGB(255, 255, 88, 66), // Fond sombre pro
+              duration: Duration(seconds: 2),
             ),
-          ),
-        ],
+          );
+          return;
+        }
+
+        // Si le deuxième clic est fait en moins de 2 secondes, on ferme l'application
+        Navigator.of(context).pop(result);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF1F4F5),
+        body: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: [
+                  _buildHome(),          // Index 0
+                  _buildStatistiquesPage(),  // Index 1 (Dépôts / Retraits)
+                  _buildHistoryPage(),       // Index 2 (Tout)
+                  _buildSettingsPage(),      // Index 3
+                ],
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: (index) => setState(() => _selectedIndex = index),
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: pureGreen,
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Accueil"),
+            BottomNavigationBarItem(icon: Icon(Icons.bar_chart_rounded), label: "Statistiques"),
+            BottomNavigationBarItem(icon: Icon(Icons.history), label: "Historique"),
+            BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Paramètres"),
+          ],
+        ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: pureGreen,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Accueil"),
-          BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: "Transactions"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Historique"),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Paramètres"),
-        ],
-      ),
-       floatingActionButton: _selectedIndex == 0 
-  ? Padding(
-      padding: const EdgeInsets.only(bottom: 80),
-      child: FloatingActionButton.extended(
-        onPressed: () => _showStatistiques(),
-        backgroundColor: const Color(0xFF00A859),
-        icon: const Icon(Icons.bar_chart, color: Colors.white),
-        label: const Text("Statistiques", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      ),
-    )
-  : null,
-floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -373,11 +382,7 @@ floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         onTap: () => setState(() => _selectedIndex = 3),
         child: Row(
           children: [
-            const CircleAvatar(
-                radius: 30,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.person, color: Colors.white, size: 35)),
-            const SizedBox(width: 15),
+                const SizedBox(width: 15),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -385,9 +390,9 @@ floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 20)),
+                        fontSize: 25)),
                 Text("ID Agent: $agentId",
-                    style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                    style: const TextStyle(color: Colors.white70, fontSize: 15)),
               ],
             ),
           ],
@@ -411,15 +416,15 @@ floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           _buildCommissionsCard(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            child: Text("SERVICES PRINCIPAUX", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5A717E), fontSize: 17)),
+            child: Text("SERVICES PRINCIPAUX", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5A717E), fontSize: 19)),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 15),
             child: Column(
               children: [
                 Row(
-                  children: [
-                    Expanded(child: _mainServiceCard(context, Icons.credit_card, "Crédits", Colors.orange)),
+                  children: [ 
+                    Expanded(child: _mainServiceCard(context, Icons.credit_card, "Crédits",  Colors.orange)),
                     const SizedBox(width: 25),
                     Expanded(child: _mainServiceCard(context, Icons.inventory_2_outlined, "Forfaits", Colors.green)),
                   ],
@@ -516,7 +521,7 @@ floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("💰 Commissions du jour",
+              const Text("Commissions du jour",
                 style: TextStyle(color: Colors.white70, fontSize: 13)),
               Text(
                 _isCommissionsVisible ? "${_commissionsJour.toStringAsFixed(0)} F" : "••••••",
@@ -555,8 +560,8 @@ floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 // --- PAGES TRANSACTIONS & HISTORIQUE (UNIFORMISÉES) ---
-  Widget _buildTransactionsPage() {
-  return const TransactionsScreen();
+ Widget _buildStatistiquesPage() {
+  return const StatistiquesScreen();
 }
 Widget _buildHistoryPage() {
   return const HistoriqueScreen();
@@ -790,7 +795,7 @@ onTap: () {
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(width: 10),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         ]),
       ),
     );
@@ -802,7 +807,7 @@ onTap: () {
       child: Column(children: [
         Container(height: 45, width: 45, decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
         const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ]),
     );
   }

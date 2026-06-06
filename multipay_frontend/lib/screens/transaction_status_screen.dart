@@ -23,7 +23,7 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
   void initState() {
     super.initState();
     // Redirection automatique vers le Dashboard après 3 secondes
-    Timer(const Duration(seconds: 3), () {
+    Timer(const Duration(milliseconds: 1000), () {
       if (mounted) {
         // --- CORRECTION ICI ---
         // On remplace le retour à la racine par une redirection propre vers le Dashboard
