@@ -9,10 +9,10 @@ const consulterStats = async (req, res) => {
     });
 
     const stats = {};
-    const statsOperateurs = {
-      MTN: { count: 0, montant: 0, commissions: 0 },
-      MOOV: { count: 0, montant: 0, commissions: 0 },
-      CELTIIS: { count: 0, montant: 0, commissions: 0 }
+    const statsParOperateur = {
+      MTN: { depot: 0, retrait: 0, credit: 0, forfait: 0, montantDepot: 0, montantRetrait: 0, montantCredit: 0, montantForfait: 0 },
+      MOOV: { depot: 0, retrait: 0, credit: 0, forfait: 0, montantDepot: 0, montantRetrait: 0, montantCredit: 0, montantForfait: 0 },
+      CELTIIS: { depot: 0, retrait: 0, credit: 0, forfait: 0, montantDepot: 0, montantRetrait: 0, montantCredit: 0, montantForfait: 0 },
     };
     let totalCommissions = 0;
     let commissionsJour = 0;
@@ -21,14 +21,12 @@ const consulterStats = async (req, res) => {
     for (const op of historique) {
       const type = op.typeOperation;
 
-      // Stats par type
       if (!stats[type]) {
         stats[type] = { count: 0, montantTotal: 0, commissions: 0 };
       }
       stats[type].count++;
       stats[type].montantTotal += Number(op.montant);
 
-      // Calcul commissions
       let taux = 0;
       if (type === 'depot') taux = 0.006;
       else if (type === 'retrait') taux = 0.03;
@@ -38,20 +36,18 @@ const consulterStats = async (req, res) => {
       stats[type].commissions += commission;
       totalCommissions += commission;
 
-      // Commissions du jour
       if (new Date(op.date).toDateString() === aujourd_hui) {
         commissionsJour += commission;
       }
 
-      // Stats par opérateur
-      if (op.operateur && statsOperateurs[op.operateur]) {
-        statsOperateurs[op.operateur].count++;
-        statsOperateurs[op.operateur].montant += Number(op.montant);
-        statsOperateurs[op.operateur].commissions += commission;
+      if (op.operateur && statsParOperateur[op.operateur]) {
+        if (['depot', 'retrait', 'credit', 'forfait'].includes(type)) {
+          statsParOperateur[op.operateur][type]++;
+          statsParOperateur[op.operateur][`montant${type.charAt(0).toUpperCase() + type.slice(1)}`] += Number(op.montant);
+        }
       }
     }
 
-    // Évolution 7 jours
     const evolution = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
@@ -75,7 +71,7 @@ const consulterStats = async (req, res) => {
       totalCommissions,
       commissionsJour,
       stats,
-      statsOperateurs,
+      statsParOperateur,
       evolution
     });
 

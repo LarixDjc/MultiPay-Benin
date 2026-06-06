@@ -1,6 +1,6 @@
 const simulerOperateur = async (operateur, numero, montant, type) => {
   // Simule un délai réseau
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise(resolve => setTimeout(resolve, 300));
 
   // Simule succès 90% du temps
   const succes = Math.random() > 0.1;
